@@ -1,11 +1,11 @@
 /* 简约时钟 Service Worker：缓存应用外壳，支持离线使用 */
-const CACHE = 'focus-clock-v2';
+const CACHE = 'focus-clock-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './icon-192.png?v=3',
+  './icon-512.png?v=3'
 ];
 
 self.addEventListener('install', e => {
