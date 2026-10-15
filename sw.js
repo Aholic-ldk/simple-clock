@@ -1,5 +1,5 @@
-/* 学习时钟 Service Worker：缓存应用外壳，支持离线使用 */
-const CACHE = 'focus-clock-v1';
+/* 简约时钟 Service Worker：缓存应用外壳，支持离线使用 */
+const CACHE = 'focus-clock-v2';
 const ASSETS = [
   './',
   './index.html',

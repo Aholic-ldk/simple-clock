@@ -1,6 +1,6 @@
 {
-  "name": "学习时钟 Focus Clock",
-  "short_name": "学习时钟",
+  "name": "简约时钟 Focus Clock",
+  "short_name": "简约时钟",
   "description": "极简专注时钟：时钟 / 倒计时 / 秒表，九种柔和主题，可安装到桌面离线使用。",
   "start_url": "./",
   "scope": "./",

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#e8933c">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
-<title>学习时钟</title>
+<title>简约时钟</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -176,12 +176,6 @@
     min-width: 11vh;
     display: inline-block;
   }
-  .sec.beat { animation: beat .34s ease-out; }
-  @keyframes beat {
-    0%   { transform: scale(1); }
-    30%  { transform: scale(1.055); }
-    100% { transform: scale(1); }
-  }
   .sec.warn { color: var(--warn); }
 
   /* ---------- 毫秒：小一号、低一级颜色 ---------- */
@@ -194,7 +188,6 @@
     margin-left: .4vh;
     letter-spacing: .02em;
   }
-  .ms.tick { color: var(--accent); }
 
   /* ---------- 副计时：固定在时钟正下方（始终可见，不随面板隐藏） ---------- */
   .subtimer {
@@ -685,23 +678,11 @@ function render() {
 
   $('hm').textContent = pad(t.h) + ':' + pad(t.m);
 
-  // 秒：与时分同字号同颜色
-  const secEl = $('sec');
-  secEl.textContent = pad(t.s);
-  if (t.s !== lastSec) {
-    lastSec = t.s;
-    secEl.classList.remove('beat');
-    void secEl.offsetWidth;
-    secEl.classList.add('beat');
-  }
+  // 秒：与时分同字号同颜色，正常跳动（无缩放动画）
+  $('sec').textContent = pad(t.s);
 
-  // 毫秒（百分秒）：每次变化点亮一次
-  const msEl = $('ms');
-  msEl.textContent = '.' + pad(t.ms);
-  if (t.ms !== lastMs) {
-    lastMs = t.ms;
-    msEl.classList.add('tick');
-  }
+  // 毫秒（百分秒）：正常显示，无闪烁
+  $('ms').textContent = '.' + pad(t.ms);
 
   /* 进度渲染：按当前样式走不同通道 */
   if (styleKey === 'ring') {
