@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#e8933c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>学习时钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ============ 主题（柔和色整片背景） ============ */
+  :root {
+    --bg: #f0efec;
+    --bg-soft: #e5e3de;
+    --main: #2b2a28;
+    --dim: #6f6d68;
+    --faint: #d8d6d0;
+    --accent: #4a4944;
+    --accent-soft: rgba(74,73,68,.12);
+    --warn: #b8543f;
+  }
+
+  /* 白 */
+  [data-theme="white"] {
+    --bg: #ffffff; --bg-soft: #f5f5f3; --main: #1c1c1e;
+    --dim: #77767a; --faint: #e6e6e4; --accent: #1c1c1e;
+    --accent-soft: rgba(28,28,30,.06); --warn: #c0392b;
+  }
+  /* 黑 */
+  [data-theme="black"] {
+    --bg: #1a1a1c; --bg-soft: #242427; --main: #f0efed;
+    --dim: #75747a; --faint: #323236; --accent: #d6d5d2;
+    --accent-soft: rgba(214,213,210,.11); --warn: #e06c5a;
+  }
+  /* 红 */
+  [data-theme="red"] {
+    --bg: #f7e9e7; --bg-soft: #f0dcd9; --main: #4a2b28;
+    --dim: #8c6a66; --faint: #e6cac5; --accent: #b8534a;
+    --accent-soft: rgba(184,83,74,.15); --warn: #a83c32;
+  }
+  /* 橙 */
+  [data-theme="orange"] {
+    --bg: #fbeee0; --bg-soft: #f6e2cd; --main: #4d3720;
+    --dim: #93724f; --faint: #eed8bd; --accent: #c47b35;
+    --accent-soft: rgba(196,123,53,.15); --warn: #b85c2c;
+  }
+  /* 黄 */
+  [data-theme="yellow"] {
+    --bg: #faf4dc; --bg-soft: #f3eac4; --main: #4a4122;
+    --dim: #8e825a; --faint: #e9dfa9; --accent: #b89a2e;
+    --accent-soft: rgba(184,154,46,.16); --warn: #a87d1e;
+  }
+  /* 绿 */
+  [data-theme="green"] {
+    --bg: #e7f2e9; --bg-soft: #d8e8dc; --main: #233a29;
+    --dim: #64806c; --faint: #c9ded0; --accent: #4d8f5f;
+    --accent-soft: rgba(77,143,95,.15); --warn: #3f7a4e;
+  }
+  /* 青 */
+  [data-theme="cyan"] {
+    --bg: #e3f1f2; --bg-soft: #d5e8ea; --main: #1f3a3d;
+    --dim: #5e8084; --faint: #c6e0e3; --accent: #47919a;
+    --accent-soft: rgba(71,145,154,.15); --warn: #2f7a82;
+  }
+  /* 蓝 */
+  [data-theme="blue"] {
+    --bg: #e6ecf6; --bg-soft: #d8e2f0; --main: #222f45;
+    --dim: #62728a; --faint: #c8d6e9; --accent: #4a6ea3;
+    --accent-soft: rgba(74,110,163,.15); --warn: #3d5c8a;
+  }
+  /* 紫 */
+  [data-theme="purple"] {
+    --bg: #efe9f5; --bg-soft: #e4dcee; --main: #33264a;
+    --dim: #76688e; --faint: #d8cbe8; --accent: #7159a3;
+    --accent-soft: rgba(113,89,163,.15); --warn: #5d4789;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--main);
+    font-family: "SF Mono", "Cascadia Mono", "Segoe UI", Consolas, monospace;
+    overflow: hidden;
+    cursor: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background .35s, color .35s;
+  }
+  body.show-ui { cursor: default; }
+
+  .stage {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4vh;
+    position: relative;
+  }
+
+  /* ---------- 环形秒进度 ---------- */
+  .ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+  .ring circle { fill: none; stroke-linecap: round; }
+  .ring .track { stroke: var(--faint); stroke-width: 2; }
+  .ring .arc {
+    stroke: var(--accent);
+    stroke-width: 2;
+    transition: stroke-dashoffset .1s linear;
+  }
+  /* 内圈：仅双环样式显示 */
+  .ring .track2, .ring .arc2 { display: none; }
+  [data-style="gauge"] .ring .track2,
+  [data-style="gauge"] .ring .arc2 { display: block; }
+  [data-style="gauge"] .arc2 { stroke-width: 1.5; opacity: .55; }
+
+  /* ring（默认）：外圈正常显示，内圈隐藏 */
+  [data-style="ring"] .ring .track2,
+  [data-style="ring"] .ring .arc2 { display: none; }
+
+  /* 不显示进度：隐藏环 */
+  [data-style="none"] .ring { display: none; }
+  [data-style="none"] .bottom-bar { opacity: 0; }
+
+  /* 底部进度条样式：脱离 stage 用fixed，确保贴在视口最底部 */
+  .bottom-bar {
+    position: fixed;
+    left: 0; bottom: 0;
+    width: 100vw; height: 4px;
+    background: var(--faint);
+    opacity: 0;
+    z-index: 15;
+    transition: opacity .3s;
+  }
+  .bottom-bar i {
+    display: block; height: 100%;
+    width: 0;
+    background: var(--accent);
+    transition: width .1s linear;
+  }
+  [data-style="bar"] .bottom-bar { opacity: 1; }
+  [data-style="bar"] .ring { display: none; }
+
+  /* ---------- 主时间：时分秒同字号同色 ---------- */
+  .readout {
+    display: flex;
+    align-items: baseline;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+    font-weight: 300;
+    position: relative;
+    z-index: 2;
+    color: var(--main);
+  }
+
+  .big {
+    font-size: 19vh;
+    line-height: .9;
+    color: var(--main);
+  }
+
+  .colon {
+    font-size: 19vh;
+    line-height: .9;
+    color: var(--main);
+    margin: 0 .5vw;
+  }
+
+  /* 秒：与时分完全同字号同颜色 */
+  .sec {
+    font-size: 19vh;
+    line-height: .9;
+    color: var(--main);
+    min-width: 11vh;
+    display: inline-block;
+  }
+  .sec.beat { animation: beat .34s ease-out; }
+  @keyframes beat {
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.055); }
+    100% { transform: scale(1); }
+  }
+  .sec.warn { color: var(--warn); }
+
+  /* ---------- 毫秒：小一号、低一级颜色 ---------- */
+  .ms {
+    font-size: 5.2vh;
+    line-height: 1;
+    color: var(--dim);
+    min-width: 8vh;
+    display: inline-block;
+    margin-left: .4vh;
+    letter-spacing: .02em;
+  }
+  .ms.tick { color: var(--accent); }
+
+  /* ---------- 副计时：固定在时钟正下方（始终可见，不随面板隐藏） ---------- */
+  .subtimer {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2vh;
+    position: relative;
+    z-index: 2;
+  }
+  .subtimer.on { display: flex; }
+  .subtimer-label {
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 1.7vh;
+    color: var(--dim);
+    letter-spacing: .1em;
+  }
+  .subtimer-row {
+    display: flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+    font-weight: 300;
+    color: var(--main);
+    line-height: 1;
+  }
+  .subtimer-time {
+    font-size: 6.4vh;
+    letter-spacing: -.01em;
+  }
+  .subtimer-time.warn { color: var(--warn); }
+  .subtimer-ms {
+    font-size: 2.8vh;
+    color: var(--dim);
+    margin-left: .5vh;
+    min-width: 6vh;
+    text-align: left;
+  }
+
+  /* ---------- 日期 ---------- */
+  .meta {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 1.9vh;
+    color: var(--dim);
+    letter-spacing: .16em;
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+  .meta .sub { color: var(--faint); font-size: 1.5vh; margin-top: .8vh; letter-spacing: .1em; }
+
+  .mode-tag {
+    position: absolute;
+    top: 5vh; left: 50%;
+    transform: translateX(-50%);
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 1.4vh;
+    letter-spacing: .3em;
+    color: var(--faint);
+    opacity: 0;
+    transition: opacity .5s;
+  }
+  .mode-tag.on { opacity: 1; }
+
+  /* ---------- 控制面板 ---------- */
+  .panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 3vh 0 4vh;
+    background: linear-gradient(to top, var(--bg) 62%, rgba(0,0,0,0));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2vh;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .28s;
+  }
+  .panel.on { opacity: 1; pointer-events: auto; }
+
+  .row { display: flex; gap: 1.4vh; align-items: center; }
+
+  button {
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 1.6vh;
+    padding: 1.4vh 2.6vh;
+    background: var(--bg-soft);
+    color: var(--dim);
+    border: 1px solid var(--faint);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all .18s;
+    letter-spacing: .05em;
+  }
+  button:hover { color: var(--main); border-color: var(--dim); }
+  button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- 右上角：颜色 + 样式 ---------- */
+  .topbar {
+    position: fixed;
+    top: 2.6vh; right: 2.6vh;
+    display: flex;
+    gap: 1.2vh;
+    align-items: center;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .28s;
+  }
+  .topbar.on { opacity: 1; pointer-events: auto; }
+
+  .icon-btn {
+    width: 4.2vh; height: 4.2vh;
+    border-radius: 50%;
+    border: 1px solid var(--faint);
+    background: var(--bg-soft);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: border-color .18s, transform .18s;
+  }
+  .icon-btn:hover { border-color: var(--dim); transform: scale(1.08); }
+  .icon-btn.on { border-color: var(--accent); }
+
+  /* 颜色按钮里的当前色点 */
+  .color-dot {
+    width: 2.1vh; height: 2.1vh;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px rgba(128,128,128,.25);
+  }
+  /* 样式按钮的三横图标 */
+  .style-glyph { display: flex; flex-direction: column; gap: .5vh; }
+  .style-glyph i {
+    display: block;
+    height: .28vh;
+    background: var(--dim);
+    border-radius: 1px;
+  }
+  .style-glyph i:nth-child(1) { width: 2.2vh; }
+  .style-glyph i:nth-child(2) { width: 1.5vh; }
+  .style-glyph i:nth-child(3) { width: 1.9vh; }
+  .icon-btn:hover .style-glyph i { background: var(--main); }
+
+  /* ---------- 弹出层 ---------- */
+  .pop {
+    position: fixed;
+    top: 8vh; right: 2.6vh;
+    background: var(--bg-soft);
+    border: 1px solid var(--faint);
+    border-radius: 12px;
+    padding: 1.8vh;
+    z-index: 21;
+    opacity: 0;
+    transform: translateY(-.8vh);
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+  .pop.on { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+  /* 九宫格色板：纯色块，无文字 */
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.3vh;
+  }
+  .swatch {
+    width: 4.6vh; height: 4.6vh;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .swatch:hover { transform: scale(1.08); }
+  /* 选中态：只加粗描边，底色不变 */
+  .swatch.on {
+    transform: scale(1.06);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.06), 0 0 0 3px var(--main);
+  }
+  /* 样式选项：选中用描边+浅底，绝不用实色底盖住文字 */
+  .style-list { display: flex; flex-direction: column; gap: .6vh; min-width: 17vh; }
+  .style-opt {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1vh 1.4vh;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 1.5vh;
+    letter-spacing: .05em;
+    width: 100%;
+    text-align: left;
+  }
+  .style-opt:hover { background: var(--bg); color: var(--main); }
+  /* 选中态：浅色底 + 深色字 + 描边，保证文字始终可读 */
+  .style-opt.on {
+    background: var(--faint);
+    color: var(--main);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .style-opt .tick { opacity: 0; font-size: 1.4vh; color: var(--accent); }
+  .style-opt.on .tick { opacity: 1; }
+
+  .keyhint {
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 1.3vh;
+    color: var(--faint);
+    letter-spacing: .1em;
+  }
+
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: var(--accent-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.6s;
+  }
+  .flash.on { opacity: 1; transition: opacity .12s; }
+
+  /* ---------- 计时控制行（在 .panel 内部，不再独立 fixed） ---------- */
+  .mini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.6vh;
+    flex-wrap: wrap;
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity .3s, height .3s;
+  }
+  .mini.on {
+    opacity: 1;
+    height: auto;
+    pointer-events: auto;
+  }
+
+  /* 倒计时/秒表按钮组 */
+  .mini-btns { display: flex; gap: .8vh; }
+  .mini-btns button { font-size: 1.4vh; padding: 1vh 1.8vh; }
+
+  /* 时长输入（倒计时自由选） */
+  .dur-input {
+    display: flex; align-items: center; gap: .4vh;
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+  }
+  .dur-input span { font-size: 1.3vh; color: var(--faint); }
+  .dur-input input {
+    width: 6vh; height: 3.4vh;
+    text-align: center;
+    background: var(--bg-soft);
+    border: 1px solid var(--faint);
+    border-radius: 6px;
+    color: var(--main);
+    font-size: 1.5vh;
+    font-family: inherit;
+    outline: none;
+  }
+  .dur-input input:focus { border-color: var(--accent); }
+  /* 秒表模式：只留开始/归零，隐藏时长输入 */
+  .mini.only-stop .dur-input { display: none; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- 右上角：颜色 + 样式 -->
+  <div class="topbar" id="topbar">
+    <button class="icon-btn" id="btnColor" onclick="togglePop('color')" title="颜色">
+      <span class="color-dot"></span>
+    </button>
+    <button class="icon-btn" id="btnStyle" onclick="togglePop('style')" title="样式">
+      <span class="style-glyph"><i></i><i></i><i></i></span>
+    </button>
+  </div>
+
+  <!-- 颜色弹出层 -->
+  <div class="pop" id="popColor">
+    <div class="swatches" id="swatches"></div>
+  </div>
+
+  <!-- 样式弹出层 -->
+  <div class="pop" id="popStyle">
+    <div class="style-list" id="styleList"></div>
+  </div>
+
+  <svg class="ring" width="62vmin" height="62vmin" viewBox="0 0 100 100">
+    <circle class="track" cx="50" cy="50" r="48"></circle>
+    <circle class="arc" id="arc" cx="50" cy="50" r="48"
+            stroke-dasharray="301.59" stroke-dashoffset="301.59"
+            transform="rotate(-90 50 50)"></circle>
+    <circle class="track2" cx="50" cy="50" r="40"
+            stroke="var(--faint)" stroke-width="1.5"></circle>
+    <circle class="arc2" id="arc2" cx="50" cy="50" r="40"
+            stroke="var(--accent)" stroke-dasharray="251.33" stroke-dashoffset="251.33"
+            transform="rotate(-90 50 50)"></circle>
+  </svg>
+
+  <div class="bottom-bar"><i id="bar"></i></div>
+
+  <div class="mode-tag" id="modeTag">时钟</div>
+
+  <div class="readout">
+    <span class="big" id="hm">00:00</span><span class="colon">:</span><span class="sec" id="sec">00</span><span class="ms" id="ms">.00</span>
+  </div>
+
+  <!-- 副计时：固定在时钟正下方，始终可见（不随面板自动隐藏） -->
+  <div class="subtimer" id="subtimer">
+    <div class="subtimer-label" id="subLabel"></div>
+    <div class="subtimer-row">
+      <span class="subtimer-time" id="subTime">00:00:00</span><span class="subtimer-ms" id="subMs">.00</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div id="date">—</div>
+    <div class="sub" id="sub"></div>
+  </div>
+
+  <div class="flash" id="flash"></div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="row">
+    <button id="mClock" class="on" onclick="setMode('clock')">时钟</button>
+    <button id="mTimer" onclick="setMode('timer')">倒计时</button>
+    <button id="mStop" onclick="setMode('stop')">秒表</button>
+  </div>
+
+  <!-- 计时控制行：倒计时/秒表时展开，时钟模式收起 -->
+  <div class="mini" id="miniPanel">
+    <div class="dur-input" id="durInput">
+      <span>分钟</span>
+      <input type="number" id="durNum" min="1" max="999" step="1" onchange="setDur(this.value)">
+    </div>
+    <div class="mini-btns">
+      <button id="btnMain" onclick="toggle()">开始</button>
+      <button onclick="reset()">归零</button>
+    </div>
+  </div>
+
+  <div class="keyhint">空格 开始/暂停　C 时钟　T 倒计时　S 秒表　F 全屏　K 颜色　Y 样式　H 面板</div>
+</div>
+
+<script>
+/* ========== 主题定义 ==========
+   bg = 整片柔和背景；accent = 同色系偏深（用于进度/强调，保证对比度） */
+const THEMES = [
+  { id:'white', name:'白', bg:'#ffffff', main:'#1c1c1e', accent:'#1c1c1e', dim:'#77767a', faint:'#e6e6e4', ink:'#1c1c1e' },
+  { id:'black', name:'黑', bg:'#1a1a1c', main:'#f0efed', accent:'#d6d5d2', dim:'#75747a', faint:'#323236', ink:'#f0efed' },
+  { id:'red',   name:'红', bg:'#f7e9e7', main:'#4a2b28', accent:'#b8534a', dim:'#8c6a66', faint:'#e6cac5', ink:'#4a2b28' },
+  { id:'orange',name:'橙', bg:'#fbeee0', main:'#4d3720', accent:'#c47b35', dim:'#93724f', faint:'#eed8bd', ink:'#4d3720' },
+  { id:'yellow',name:'黄', bg:'#faf4dc', main:'#4a4122', accent:'#b89a2e', dim:'#8e825a', faint:'#e9dfa9', ink:'#4a4122' },
+  { id:'green', name:'绿', bg:'#e7f2e9', main:'#233a29', accent:'#4d8f5f', dim:'#64806c', faint:'#c9ded0', ink:'#233a29' },
+  { id:'cyan',  name:'青', bg:'#e3f1f2', main:'#1f3a3d', accent:'#47919a', dim:'#5e8084', faint:'#c6e0e3', ink:'#1f3a3d' },
+  { id:'blue',  name:'蓝', bg:'#e6ecf6', main:'#222f45', accent:'#4a6ea3', dim:'#62728a', faint:'#c8d6e9', ink:'#222f45' },
+  { id:'purple',name:'紫', bg:'#efe9f5', main:'#33264a', accent:'#7159a3', dim:'#76688e', faint:'#d8cbe8', ink:'#33264a' }
+];
+
+let mode = 'clock';
+let presetMin = 45;
+let running = false;
+let baseMs = 0;
+let startTs = 0;
+let lastSec = -1;
+let lastMs = -1;
+let lastFlash = '';
+let styleKey = 'ring';
+
+/* ========== 显示样式 ========== */
+const STYLES = [
+  { id: 'none', name: '不显示进度', hint: '只留数字' },
+  { id: 'bar',  name: '底部进度',   hint: '屏幕底部一条细线' },
+  { id: 'ring', name: '环形进度',   hint: '外圈每秒转一圈' },
+  { id: 'gauge',name: '双进度环',   hint: '外圈分钟，内圈秒' }
+];
+
+const CIRC = 2 * Math.PI * 48;
+const $ = id => document.getElementById(id);
+
+/* ---------- 样式切换 ---------- */
+function setStyle(k, save) {
+  if (!STYLES.some(s => s.id === k)) return;
+  styleKey = k;
+  document.body.setAttribute('data-style', k);
+  try { if (save !== false) localStorage.setItem('focus-clock-style', k); } catch(e){}
+  document.querySelectorAll('.style-opt').forEach(o => o.classList.toggle('on', o.dataset.k === k));
+  render();
+}
+
+/* ---------- 弹出层 ---------- */
+let popOpen = null;
+function togglePop(which) {
+  const isOpen = popOpen === which;
+  closePop();
+  if (!isOpen) {
+    popOpen = which;
+    if (which === 'color') {
+      $('popColor').classList.add('on');
+      $('btnColor').classList.add('on');
+    } else {
+      $('popStyle').classList.add('on');
+      $('btnStyle').classList.add('on');
+    }
+  }
+  showUI();
+}
+
+function closePop() {
+  if (!popOpen) return;
+  $('popColor').classList.remove('on');
+  $('popStyle').classList.remove('on');
+  $('btnColor').classList.remove('on');
+  $('btnStyle').classList.remove('on');
+  popOpen = null;
+}
+
+/* ========== 主题 ========== */
+function setTheme(idx, save) {
+  const t = THEMES[idx];
+  if (!t) return;
+  document.documentElement.setAttribute('data-theme', t.id);
+  document.body.style.setProperty('--bg', t.bg);
+  document.body.style.setProperty('--main', t.main);
+  document.body.style.setProperty('--accent', t.accent);
+  document.body.style.setProperty('--dim', t.dim);
+  document.body.style.setProperty('--faint', t.faint);
+  try { if (save !== false) localStorage.setItem('focus-clock-theme', String(idx)); } catch(e){}
+  document.querySelectorAll('.swatch').forEach((s,i) => s.classList.toggle('on', i === idx));
+}
+
+/* ========== 时间计算 ========== */
+function pad(n) { return String(n).padStart(2, '0'); }
+function nowMs() { return baseMs + (running ? Date.now() - startTs : 0); }
+
+function shown() {
+  // 主时钟永远是真实时间
+  const d = new Date();
+  const ms = Math.floor(d.getMilliseconds() / 10);
+  return {
+    h: d.getHours(), m: d.getMinutes(), s: d.getSeconds(),
+    ms: ms, pct: d.getSeconds() / 60 + d.getMilliseconds() / 60000
+  };
+}
+
+/* 副计时：倒计时/秒表 的值 */
+function miniVal() {
+  const t = nowMs();
+  const totalSec = Math.floor(t / 1000);
+  const cs = Math.floor((t % 1000) / 10);
+  if (mode === 'timer') {
+    const left = Math.max(0, presetMin * 60 - totalSec);
+    return {
+      h: Math.floor(left / 3600),
+      m: Math.floor((left % 3600) / 60),
+      s: left % 60,
+      pct: left / (presetMin * 60),
+      warn: left <= 10 && left > 0,
+      done: presetMin * 60 > 0 && totalSec >= presetMin * 60,
+      label: '倒计时剩余 ' + presetMin + ' 分钟'
+    };
+  }
+  return {
+    h: Math.floor(totalSec / 3600),
+    m: Math.floor((totalSec % 3600) / 60),
+    s: totalSec % 60,
+    cs: cs,
+    pct: (totalSec % 60) / 60,
+    warn: false, done: false,
+    label: running ? '秒表计时中' : (baseMs > 0 ? '秒表已暂停' : '秒表待开始')
+  };
+}
+
+/* ========== 渲染 ========== */
+function render() {
+  const t = shown();
+  const d = new Date();
+
+  $('hm').textContent = pad(t.h) + ':' + pad(t.m);
+
+  // 秒：与时分同字号同颜色
+  const secEl = $('sec');
+  secEl.textContent = pad(t.s);
+  if (t.s !== lastSec) {
+    lastSec = t.s;
+    secEl.classList.remove('beat');
+    void secEl.offsetWidth;
+    secEl.classList.add('beat');
+  }
+
+  // 毫秒（百分秒）：每次变化点亮一次
+  const msEl = $('ms');
+  msEl.textContent = '.' + pad(t.ms);
+  if (t.ms !== lastMs) {
+    lastMs = t.ms;
+    msEl.classList.add('tick');
+  }
+
+  /* 进度渲染：按当前样式走不同通道 */
+  if (styleKey === 'ring') {
+    $('arc').style.strokeDashoffset = CIRC * (1 - t.pct);
+  } else if (styleKey === 'gauge') {
+    $('arc').style.strokeDashoffset = CIRC * (1 - t.pct);
+    const CIRC2 = 2 * Math.PI * 40;
+    // 内圈走分钟
+    const mins = ((d.getHours() * 3600 + d.getMinutes() * 60) % 3600) / 3600;
+    $('arc2').style.strokeDashoffset = CIRC2 * (1 - mins);
+  } else if (styleKey === 'bar') {
+    $('bar').style.width = (t.pct * 100).toFixed(2) + '%';
+  }
+
+  // 副计时（倒计时/秒表）—— 固定在时钟正下方，始终可见
+  if (mode !== 'clock') {
+    const mv = miniVal();
+    $('subLabel').textContent = mv.label;
+    $('subTime').textContent = pad(mv.h) + ':' + pad(mv.m) + ':' + pad(mv.s);
+    $('subTime').classList.toggle('warn', !!mv.warn);
+    // 秒表显示毫秒，倒计时不显示
+    const msEl = $('subMs');
+    if (mode === 'stop') {
+      msEl.style.display = 'inline-block';
+      msEl.textContent = '.' + pad(mv.cs);
+    } else {
+      msEl.style.display = 'none';
+    }
+
+    if (mv.done && running) {
+      running = false; baseMs = 0;
+      const f = $('flash');
+      f.classList.add('on');
+      setTimeout(() => f.classList.remove('on'), 900);
+      updateBtn();
+    }
+  }
+
+  // 日期（不使用倒计时/秒表时，正中下方不留任何中文说明）
+  const wk = '日一二三四五六'[d.getDay()];
+  $('date').textContent = d.getFullYear() + ' 年 ' + (d.getMonth()+1) + ' 月 ' + d.getDate() + ' 日　星期' + wk;
+  $('sub').textContent = '';
+
+  // 整点/半点轻闪
+  if (t.m === 0 && t.s === 0) {
+    const key = d.getHours() + ':' + d.getMinutes();
+    if (key !== lastFlash) {
+      lastFlash = key;
+      const f = $('flash');
+      f.classList.add('on');
+      setTimeout(() => f.classList.remove('on'), 140);
+    }
+  }
+}
+
+/* ========== 交互 ========== */
+function setMode(m) {
+  if (running) { baseMs += Date.now() - startTs; running = false; }
+  baseMs = 0;
+  mode = m;
+  lastSec = -1; lastMs = -1;
+  ['mClock','mTimer','mStop'].forEach((id,i) =>
+    $(id).classList.toggle('on', ['clock','timer','stop'][i] === m));
+  $('modeTag').textContent = m === 'clock' ? '时钟' : (m === 'timer' ? '倒计时' : '秒表');
+  $('modeTag').classList.toggle('on', m !== 'clock');
+  // 副计时显示：固定在时钟正下方，始终可见（不受面板自动隐藏影响）
+  $('subtimer').classList.toggle('on', m !== 'clock');
+  // 控制行（输入框+按钮）仅倒计时/秒表时出现
+  $('miniPanel').classList.toggle('on', m !== 'clock');
+  // 秒表模式：只需要开始/归零，隐藏时长输入
+  $('miniPanel').classList.toggle('only-stop', m === 'stop');
+  updateBtn();
+}
+
+function updateBtn() { $('btnMain').textContent = running ? '暂停' : '开始'; }
+
+function toggle() {
+  if (mode === 'clock') { setMode('timer'); running = true; startTs = Date.now(); updateBtn(); return; }
+  if (running) { baseMs += Date.now() - startTs; running = false; }
+  else { running = true; startTs = Date.now(); }
+  updateBtn();
+}
+
+function reset() { baseMs = 0; running = false; updateBtn(); }
+
+/* 自由设置倒计时分钟数 */
+function setDur(v) {
+  let n = parseInt(v, 10);
+  if (isNaN(n) || n < 1) n = 1;
+  if (n > 999) n = 999;
+  presetMin = n;
+  baseMs = 0; running = false;
+  const el = $('durNum'); if (el) el.value = n;
+  updateBtn();
+}
+
+/* 面板自动隐藏 */
+let uiTimer = null;
+function showUI() {
+  document.body.classList.add('show-ui');
+  $('panel').classList.add('on');
+  $('topbar').classList.add('on');
+  // 副计时面板跟随显隐，但仅在计时模式下出现
+  $('miniPanel').classList.toggle('on', mode !== 'clock');
+  clearTimeout(uiTimer);
+  uiTimer = setTimeout(hideUI, 3600);
+}
+function hideUI() {
+  document.body.classList.remove('show-ui');
+  $('panel').classList.remove('on');
+  $('topbar').classList.remove('on');
+  $('miniPanel').classList.remove('on');
+  closePop();
+}
+
+document.addEventListener('mousemove', showUI);
+document.addEventListener('click', e => {
+  // 点在按钮/弹层/副计时面板内部则不关闭
+  if (e.target.closest('.panel') || e.target.closest('.topbar') ||
+      e.target.closest('.pop') || e.target.closest('#miniPanel')) {
+    showUI();
+    return;
+  }
+  closePop();
+});
+
+document.addEventListener('keydown', e => {
+  // 正在输入框里打字时，不触发任何快捷键（否则按数字会误改主题色）
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if (e.code === 'Space') { e.preventDefault(); toggle(); }
+  else if (k === 'c') setMode('clock');
+  else if (k === 't') setMode('timer');
+  else if (k === 's') setMode('stop');
+  else if (k === 'r') reset();
+  else if (k === 'h') { $('panel').classList.contains('on') ? hideUI() : showUI(); }
+  else if (k === 'f') {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  }
+  else if (/^[1-9]$/.test(k)) setTheme(Number(k) - 1);
+  else if (k === 'k') togglePop('color');
+  else if (k === 'y') togglePop('style');
+  showUI();
+});
+
+/* ========== 初始化 ========== */
+// 生成九宫格色板：纯色块，格内无文字
+const sw = $('swatches');
+sw.innerHTML = THEMES.map((t, i) =>
+  '<button class="swatch" data-i="' + i + '" title="' + t.name + '" ' +
+  'style="background:' + t.bg + ';border-color:' + t.accent + '"></button>'
+).join('');
+sw.querySelectorAll('.swatch').forEach(s => {
+  s.onclick = () => { setTheme(Number(s.dataset.i)); };
+});
+
+// 生成样式选项
+const sl = $('styleList');
+sl.innerHTML = STYLES.map(s =>
+  '<button class="style-opt" data-k="' + s.id + '" title="' + s.hint + '">'
+  + '<span>' + s.name + '</span><span class="tick">✓</span></button>'
+).join('');
+sl.querySelectorAll('.style-opt').forEach(o => {
+  o.onclick = () => setStyle(o.dataset.k);
+});
+
+// 读回上次主题与样式
+let saved = 3;   // 默认橙色
+try { const v = localStorage.getItem('focus-clock-theme'); if (v !== null) saved = Number(v); } catch(e){}
+if (!(saved >= 0 && saved < THEMES.length)) saved = 3;
+setTheme(saved, false);
+
+let savedStyle = 'ring';
+try { const v = localStorage.getItem('focus-clock-style'); if (v) savedStyle = v; } catch(e){}
+setStyle(savedStyle, false);
+
+// 时长输入框：回填上次设定
+$('durNum').value = presetMin;
+$('modeTag').classList.remove('on');
+$('miniPanel').classList.remove('on');
+updateBtn();
+render();
+showUI();
+setInterval(render, 40);
+
+// PWA：注册 Service Worker（file:// 本地双击打开时自动跳过，不影响使用）
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
