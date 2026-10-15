@@ -2,7 +2,7 @@
 
 一个**单文件、零依赖**的极简专注时钟：时钟 / 倒计时 / 秒表三合一，支持自定义倒计时时长、四种进度显示样式、九种柔和主题色，可安装到桌面离线使用。
 
-> 在线体验：**https://aholic-ldk.github.io/focus-clock/**（部署后此链接生效）
+> 在线体验：**https://aholic-ldk.github.io/simple-clock/**（部署后此链接生效）
 
 ![简约时钟](screenshot.png)
 
@@ -40,7 +40,7 @@ git remote add origin git@github.com:<你的用户名>/focus-clock.git
 git push -u origin main
 
 # 2. 仓库 Settings → Pages → Source 选 main 分支 → Save
-# 3. 稍等片刻，访问 https://<你的用户名>.github.io/focus-clock/
+# 3. 稍等片刻，访问 https://<你的用户名>.github.io/simple-clock/
 ```
 
 ## 技术说明
